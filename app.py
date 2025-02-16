@@ -6,6 +6,8 @@ import yaml
 from tools.final_answer import FinalAnswerTool
 import re
 import ast
+from typing import List
+
 
 from Gradio_UI import GradioUI
 
@@ -99,22 +101,26 @@ def get_pr_diff(github_url: str, pr_number: int, start_line: int = None, end_lin
         return "\n".join(diff_lines)
     except Exception as e:
         return f"Error retrieving PR diff: {str(e)}"
-    
 
 @tool
-def get_pr_files_changed(github_url: str, pr_number: int) -> str:
-    """Retrieves the list of files changed in a given pull request.
+def get_pr_diff_for_file(github_url: str, pr_number: int, file_path: str) -> str:
+    """Fetches the code diff for a specific file in a given pull request.
     
     Args:
         github_url: The URL of the GitHub repository where the pull request is located.
-        pr_number: The pull request number for which the changed files should be retrieved.
+                    (e.g., 'https://github.com/crewAIInc/crewAI').
+        pr_number: The pull request number for which the diff should be retrieved.
+        file_path: The relative path of the file within the repository to retrieve the diff for
+                   (e.g., 'src/module.py').
     
     Returns:
-        A string listing the files modified in the specified pull request.
-        If no files were found or an error occurs, returns an appropriate message.
+        A string containing the code diff (patch) for the specified file in the pull request.
+        If the file is not found in the PR or if its diff is not available, returns an error message.
     """
     try:
+        # Extract owner and repo from the URL
         owner_repo = github_url.replace("https://github.com/", "")
+        # API endpoint to get files changed in the PR
         api_url = f"https://api.github.com/repos/{owner_repo}/pulls/{pr_number}/files"
         response = requests.get(api_url)
         
@@ -122,10 +128,45 @@ def get_pr_files_changed(github_url: str, pr_number: int) -> str:
             return f"Error fetching PR files: {response.json().get('message', 'Unknown error')}"
         
         files = response.json()
-        return "\n".join([file['filename'] for file in files])
+        # Look for the specific file in the list
+        for file_info in files:
+            if file_info.get('filename') == file_path:
+                patch = file_info.get('patch')
+                if patch:
+                    return patch
+                else:
+                    return f"No diff (patch) available for file: {file_path}"
+        
+        return f"File '{file_path}' not found in the pull request."
+    except Exception as e:
+        return f"Error retrieving PR diff for file: {str(e)}"
+
+
+@tool
+def get_pr_files_changed(github_url: str, pr_number: int) -> List[str]:
+    """Retrieves the list of files changed in a given pull request.
+    
+    Args:
+        github_url: The URL of the GitHub repository where the pull request is located.
+        pr_number: The pull request number for which the changed files should be retrieved.
+    
+    Returns:
+        A list of strings, where each string is a file path that was modified in the specified pull request.
+        If no files are found or an error occurs, returns a list with an appropriate error message.
+    """
+    try:
+        owner_repo = github_url.replace("https://github.com/", "")
+        api_url = f"https://api.github.com/repos/{owner_repo}/pulls/{pr_number}/files"
+        response = requests.get(api_url)
+        
+        if response.status_code != 200:
+            return [f"Error fetching PR files: {response.json().get('message', 'Unknown error')}"]
+        
+        files = response.json()
+        return [file['filename'] for file in files]
 
     except Exception as e:
-        return f"Error retrieving files for PR #{pr_number}: {str(e)}"
+        return [f"Error retrieving files for PR #{pr_number}: {str(e)}"]
 
 @tool
 def detect_code_smells(code: str) -> str:
@@ -281,7 +322,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content, security_check_code, check_documentation_updates, lint_code ], ## add your tools here (don't remove final answer)
+    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content, security_check_code, check_documentation_updates, lint_code, get_pr_diff_for_file ], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
