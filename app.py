@@ -59,16 +59,21 @@ def find_todo_comments(code: str) -> str:
     return "\n".join([f"{match[0]}: {match[1]}" for match in matches])
 
 @tool
-def get_pr_diff(github_url: str, pr_number: int) -> str:
-    """Fetches the code diff of a specific pull request.
+def get_pr_diff(github_url: str, pr_number: int, start_line: int = None, end_line: int = None, total_lines: int = None) -> str:
+    """Fetches the code diff of a specific pull request and returns a subset of lines as requested.
     
     Args:
         github_url: The URL of the GitHub repository where the pull request is located.
+                    (e.g., 'https://github.com/crewAIInc/crewAI').
         pr_number: The pull request number for which the code diff should be retrieved.
+        start_line: Optional; the starting line number (1-indexed) of the diff to return.
+        end_line: Optional; the ending line number (1-indexed) of the diff to return.
+        total_lines: Optional; if provided, returns the first 'total_lines' lines of the diff.
+                     This parameter is ignored if both start_line and end_line are provided.
     
     Returns:
-        A string containing the code diff of the specified pull request.
-        If the diff cannot be retrieved, returns an error message.
+        A string containing the requested portion of the code diff of the specified pull request.
+        If the diff cannot be retrieved or if invalid parameters are provided, returns an error message.
     """
     try:
         owner_repo = github_url.replace("https://github.com/", "")
@@ -78,8 +83,20 @@ def get_pr_diff(github_url: str, pr_number: int) -> str:
         if response.status_code != 200:
             return f"Error fetching PR diff: {response.json().get('message', 'Unknown error')}"
         
-        return response.text[:1000]  # Limit output to avoid overload
-
+        diff_text = response.text
+        # Split the diff into individual lines
+        diff_lines = diff_text.splitlines()
+        
+        # Determine which subset of lines to return:
+        if start_line is not None or end_line is not None:
+            if start_line is None or end_line is None:
+                return "Error: Both start_line and end_line must be provided if specifying a range."
+            # Adjust for 1-indexed line numbers provided by the user.
+            diff_lines = diff_lines[start_line - 1:end_line]
+        elif total_lines is not None:
+            diff_lines = diff_lines[:total_lines]
+        
+        return "\n".join(diff_lines)
     except Exception as e:
         return f"Error retrieving PR diff: {str(e)}"
     
