@@ -1,41 +1,14 @@
-from smolagents import CodeAgent,DuckDuckGoSearchTool, HfApiModel,load_tool,tool
+from smolagents import CodeAgent, HfApiModel,tool
 import datetime
 import requests
 import pytz
 import yaml
 from tools.final_answer import FinalAnswerTool
-from duckduckgo_search import DDGS
 import re
 import ast
 
-
-
 from Gradio_UI import GradioUI
 
-@tool
-def search_my_code(github_url:str, code:str)-> str:
-    """Searches for code in the github repo given it's url using DuckDuckGo.
-    
-    Args:
-        github_url: The URL of the GitHub repository where the code resides. (e.g., 'https://github.com/LukeMattingly/huggingface-agents-course', 'https://github.com/upb-lea/reinforcement_learning_course_materials').
-        code: The new code content to update in the repository.
-    
-    Returns:
-        A string with top search results for code given a github url.
-    """
-    try:
-        query = f"{code} site:{github_url}"
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=5))  # Get top 5 results
-
-        if results:
-            response = "\n".join([f"{res['title']}: {res['href']}" for res in results])
-            return f"Here is some code from the github repo {github_url}:\n\n{response}"
-        else:
-            return f"No results found for {github_url}."
-
-    except Exception as e:
-        return f"Error searching for code in {github_url}: {str(e)}"
 
 @tool
 def get_open_pull_requests(github_url: str) -> str:
@@ -185,6 +158,93 @@ def get_file_content(github_url: str, file_path: str) -> str:
         return response.text
     except Exception as e:
         return f"Error: {str(e)}"
+    
+@tool
+def security_check_code(code: str) -> str:
+    """Analyzes the provided code snippet for potential security vulnerabilities.
+    
+    Args:
+        code: The source code to be analyzed for common security issues (e.g., hardcoded secrets, unsafe functions).
+    
+    Returns:
+        A string listing detected potential security vulnerabilities based on common patterns (e.g., hardcoded credentials,
+        risky usage of functions like eval or os.system, and simple SQL injection risks). If no issues are found, returns a message indicating the code is secure.
+    """
+    import re
+    issues = []
+    
+    # Check for hardcoded credentials (case-insensitive search)
+    secret_patterns = [
+        r'(?i)api[-_]?key\s*=\s*[\'"].+[\'"]',
+        r'(?i)secret\s*=\s*[\'"].+[\'"]',
+        r'(?i)password\s*=\s*[\'"].+[\'"]',
+        r'(?i)token\s*=\s*[\'"].+[\'"]'
+    ]
+    for pattern in secret_patterns:
+        matches = re.findall(pattern, code)
+        if matches:
+            issues.append("Potential hardcoded credential(s) found: " + ", ".join(matches))
+    
+    # Check for usage of eval() which can be dangerous
+    if "eval(" in code:
+        issues.append("Usage of eval() detected, which can lead to security vulnerabilities if misused.")
+    
+    # Check for potential command injection risks with os.system
+    if "os.system(" in code:
+        issues.append("Usage of os.system() detected; consider using safer alternatives to avoid command injection risks.")
+    
+    # Check for simple SQL injection patterns (heuristic)
+    sql_injection_patterns = [
+        r"execute\(.+\+.+\)",
+        r"format\(.+%\(.+\)s.+\)"
+    ]
+    for pattern in sql_injection_patterns:
+        matches = re.findall(pattern, code)
+        if matches:
+            issues.append("Potential SQL injection risk found in statements: " + ", ".join(matches))
+    
+    if issues:
+        return "\n".join(issues)
+    else:
+        return "No obvious security vulnerabilities detected based on heuristic analysis."
+
+@tool
+def check_documentation_updates(changed_files: str) -> str:
+    """Checks whether documentation files have been updated alongside code changes.
+    
+    Args:
+        changed_files: A newline-separated string listing the file paths changed in a commit or pull request.
+    
+    Returns:
+        A string indicating whether documentation appears to have been updated or if it might be missing.
+    """
+    files = [f.strip() for f in changed_files.splitlines() if f.strip()]
+    doc_files = [f for f in files if "readme" in f.lower() or "docs" in f.lower()]
+    
+    if doc_files:
+        return "Documentation files were updated."
+    else:
+        return "No documentation updates detected. Consider reviewing the docs to ensure they reflect the new changes."
+
+@tool
+def lint_code(code: str) -> str:
+    """Analyzes the provided code snippet for style and potential issues using a linter.
+    
+    Args:
+        code: The source code to be analyzed.
+    
+    Returns:
+        A string with linting warnings and suggestions for improvement, or a message indicating that no issues were found.
+    """
+    # This is a placeholder; you could integrate pylint or flake8 via subprocess or an API.
+    # For demonstration, we'll simulate a response.
+    issues = []
+    if "print(" in code:
+        issues.append("Consider removing debug print statements.")
+    if not issues:
+        return "No linting issues found."
+    return "\n".join(issues)
+
 
 final_answer = FinalAnswerTool()
 
@@ -204,7 +264,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content ], ## add your tools here (don't remove final answer)
+    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content, security_check_code, check_documentation_updates, lint_code ], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,

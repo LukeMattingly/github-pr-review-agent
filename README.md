@@ -1,5 +1,5 @@
 ---
-title: First Agent Template
+title: Github PR Assistant
 emoji: ⚡
 colorFrom: pink
 colorTo: yellow
@@ -16,3 +16,4 @@ tags:
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+
