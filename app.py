@@ -13,7 +13,8 @@ def update_my_code(github_url:str, code:str)-> str:
     """Searches for code in the github repo given it's url using DuckDuckGo.
     
     Args:
-        location: The github url (e.g., 'https://github.com/LukeMattingly/huggingface-agents-course', 'https://github.com/upb-lea/reinforcement_learning_course_materials').
+        github_url: The URL of the GitHub repository where the code resides. (e.g., 'https://github.com/LukeMattingly/huggingface-agents-course', 'https://github.com/upb-lea/reinforcement_learning_course_materials').
+        code: The new code content to update in the repository.
     
     Returns:
         A string with top search results for code given a github url.
