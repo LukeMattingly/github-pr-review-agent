@@ -165,6 +165,27 @@ def detect_code_smells(code: str) -> str:
     except Exception as e:
         return f"Error analyzing code: {str(e)}"
 
+@tool
+def get_file_content(github_url: str, file_path: str) -> str:
+    """Fetches the content of a specific file from the GitHub repository.
+    
+    Args:
+        github_url: The URL of the GitHub repository (e.g., 'https://github.com/user/repo').
+        file_path: The relative path of the file within the repository (e.g., 'src/module.py').
+    
+    Returns:
+        A string containing the file's content or an error message if retrieval fails.
+    """
+    try:
+        owner_repo = github_url.replace("https://github.com/", "")
+        api_url = f"https://raw.githubusercontent.com/{owner_repo}/main/{file_path}"
+        response = requests.get(api_url)
+        if response.status_code != 200:
+            return f"Error fetching file content: {response.status_code}"
+        return response.text
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 final_answer = FinalAnswerTool()
 
 # If the agent does not answer, the model is overloaded, please use another model or the following Hugging Face Endpoint that also contains qwen2.5 coder:
@@ -183,7 +204,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells ], ## add your tools here (don't remove final answer)
+    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content ], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
