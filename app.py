@@ -5,6 +5,10 @@ import pytz
 import yaml
 from tools.final_answer import FinalAnswerTool
 from duckduckgo_search import DDGS
+import re
+import ast
+
+
 
 from Gradio_UI import GradioUI
 
@@ -34,20 +38,132 @@ def search_my_code(github_url:str, code:str)-> str:
         return f"Error searching for code in {github_url}: {str(e)}"
 
 @tool
-def get_current_time_in_timezone(timezone: str) -> str:
-    """A tool that fetches the current local time in a specified timezone.
+def get_open_pull_requests(github_url: str) -> str:
+    """Fetches a list of open pull requests for a given GitHub repository.
+    
     Args:
-        timezone: A string representing a valid timezone (e.g., 'America/New_York').
+        github_url: The URL of the GitHub repository where the pull requests should be retrieved. 
+                    (e.g., 'https://github.com/LukeMattingly/huggingface-agents-course', 
+                    'https://github.com/upb-lea/reinforcement_learning_course_materials').
+    
+    Returns:
+        A string containing the list of open pull requests with their titles and links.
+        If no pull requests are open, returns a message indicating no PRs were found.
     """
     try:
-        # Create timezone object
-        tz = pytz.timezone(timezone)
-        # Get current time in that timezone
-        local_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-        return f"The current local time in {timezone} is: {local_time}"
-    except Exception as e:
-        return f"Error fetching time for timezone '{timezone}': {str(e)}"
+        owner_repo = github_url.replace("https://github.com/", "")
+        api_url = f"https://api.github.com/repos/{owner_repo}/pulls"
+        response = requests.get(api_url)
+        
+        if response.status_code != 200:
+            return f"Error fetching PRs: {response.json().get('message', 'Unknown error')}"
+        
+        pull_requests = response.json()
+        if not pull_requests:
+            return "No open pull requests found."
+        
+        return "\n".join([f"PR #{pr['number']}: {pr['title']} - {pr['html_url']}" for pr in pull_requests])
 
+    except Exception as e:
+        return f"Error retrieving pull requests: {str(e)}"
+
+@tool
+def find_todo_comments(code: str) -> str:
+    """Finds TODO and FIXME comments in the provided code.
+    
+    Args:
+        code: The source code in which to search for TODO and FIXME comments.
+    
+    Returns:
+        A string listing all TODO and FIXME comments found in the code.
+        If no comments are found, returns a message indicating that no TODO or FIXME comments exist.
+    """
+    matches = re.findall(r"#\s*(TODO|FIXME):?\s*(.*)", code, re.IGNORECASE)
+    
+    if not matches:
+        return "No TODO or FIXME comments found."
+    
+    return "\n".join([f"{match[0]}: {match[1]}" for match in matches])
+
+@tool
+def get_pr_diff(github_url: str, pr_number: int) -> str:
+    """Fetches the code diff of a specific pull request.
+    
+    Args:
+        github_url: The URL of the GitHub repository where the pull request is located.
+        pr_number: The pull request number for which the code diff should be retrieved.
+    
+    Returns:
+        A string containing the code diff of the specified pull request.
+        If the diff cannot be retrieved, returns an error message.
+    """
+    try:
+        owner_repo = github_url.replace("https://github.com/", "")
+        api_url = f"https://api.github.com/repos/{owner_repo}/pulls/{pr_number}"
+        response = requests.get(api_url, headers={"Accept": "application/vnd.github.v3.diff"})
+        
+        if response.status_code != 200:
+            return f"Error fetching PR diff: {response.json().get('message', 'Unknown error')}"
+        
+        return response.text[:1000]  # Limit output to avoid overload
+
+    except Exception as e:
+        return f"Error retrieving PR diff: {str(e)}"
+    
+
+@tool
+def get_pr_files_changed(github_url: str, pr_number: int) -> str:
+    """Retrieves the list of files changed in a given pull request.
+    
+    Args:
+        github_url: The URL of the GitHub repository where the pull request is located.
+        pr_number: The pull request number for which the changed files should be retrieved.
+    
+    Returns:
+        A string listing the files modified in the specified pull request.
+        If no files were found or an error occurs, returns an appropriate message.
+    """
+    try:
+        owner_repo = github_url.replace("https://github.com/", "")
+        api_url = f"https://api.github.com/repos/{owner_repo}/pulls/{pr_number}/files"
+        response = requests.get(api_url)
+        
+        if response.status_code != 200:
+            return f"Error fetching PR files: {response.json().get('message', 'Unknown error')}"
+        
+        files = response.json()
+        return "\n".join([file['filename'] for file in files])
+
+    except Exception as e:
+        return f"Error retrieving files for PR #{pr_number}: {str(e)}"
+
+@tool
+def detect_code_smells(code: str) -> str:
+    """Detects common code smells such as long functions and deeply nested loops.
+    
+    Args:
+        code: The source code to analyze for potential code smells.
+    
+    Returns:
+        A string listing detected code smells, including long functions and deeply nested loops.
+        If no code smells are found, returns a message indicating the code is clean.
+    """
+    try:
+        tree = ast.parse(code)
+        issues = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and len(node.body) > 20:
+                issues.append(f"Long function detected: {node.name} ({len(node.body)} lines)")
+            if isinstance(node, ast.For) or isinstance(node, ast.While):
+                nested_loops = sum(isinstance(n, (ast.For, ast.While)) for n in ast.walk(node))
+                if nested_loops > 2:
+                    issues.append(f"Deeply nested loop detected in function: {node.lineno}")
+
+        return "\n".join(issues) if issues else "No code smells detected."
+
+    except Exception as e:
+        return f"Error analyzing code: {str(e)}"
 
 final_answer = FinalAnswerTool()
 
@@ -61,9 +177,6 @@ model_id='Qwen/Qwen2.5-Coder-32B-Instruct',# it is possible that this model may 
 custom_role_conversions=None,
 )
 
-
-# Import tool from Hub
-image_generation_tool = load_tool("agents-course/text-to-image", trust_remote_code=True)
 
 with open("prompts.yaml", 'r') as stream:
     prompt_templates = yaml.safe_load(stream)
