@@ -9,7 +9,7 @@ from duckduckgo_search import DDGS
 from Gradio_UI import GradioUI
 
 @tool
-def update_my_code(github_url:str, code:str)-> str:
+def search_my_code(github_url:str, code:str)-> str:
     """Searches for code in the github repo given it's url using DuckDuckGo.
     
     Args:
@@ -70,7 +70,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, update_my_code], ## add your tools here (don't remove final answer)
+    tools=[final_answer, search_my_code], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
