@@ -4,19 +4,33 @@ import requests
 import pytz
 import yaml
 from tools.final_answer import FinalAnswerTool
+from duckduckgo_search import DDGS
 
 from Gradio_UI import GradioUI
 
-# Below is an example of a tool that does nothing. Amaze us with your creativity !
 @tool
-def my_custom_tool(arg1:str, arg2:int)-> str: #it's import to specify the return type
-    #Keep this format for the description / args / args description but feel free to modify the tool
-    """A tool that does nothing yet 
+def update_my_code(github_url:str, code:str)-> str:
+    """Searches for code in the github repo given it's url using DuckDuckGo.
+    
     Args:
-        arg1: the first argument
-        arg2: the second argument
+        location: The github url (e.g., 'https://github.com/LukeMattingly/huggingface-agents-course', 'https://github.com/upb-lea/reinforcement_learning_course_materials').
+    
+    Returns:
+        A string with top search results for code given a github url.
     """
-    return "What magic will you build ?"
+    try:
+        query = f"{code} site:{github_url}"
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=5))  # Get top 5 results
+
+        if results:
+            response = "\n".join([f"{res['title']}: {res['href']}" for res in results])
+            return f"Here is some code from the github repo {github_url}:\n\n{response}"
+        else:
+            return f"No results found for {github_url}."
+
+    except Exception as e:
+        return f"Error searching for code in {github_url}: {str(e)}"
 
 @tool
 def get_current_time_in_timezone(timezone: str) -> str:
@@ -55,7 +69,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer], ## add your tools here (don't remove final answer)
+    tools=[final_answer, update_my_code], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
