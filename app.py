@@ -7,6 +7,8 @@ from tools.final_answer import FinalAnswerTool
 import re
 import ast
 from typing import List
+from huggingface_hub import login
+import os
 
 
 from Gradio_UI import GradioUI
@@ -310,10 +312,14 @@ final_answer = FinalAnswerTool()
 # If the agent does not answer, the model is overloaded, please use another model or the following Hugging Face Endpoint that also contains qwen2.5 coder:
 # model_id='https://pflgm2locj2t89co.us-east-1.aws.endpoints.huggingface.cloud' 
 
+hf_token = os.getenv("HF_TOKEN")
+if hf_token:
+    login(token=hf_token)
+
 model = HfApiModel(
 max_tokens=2096,
 temperature=0.5,
-model_id='deepseek-ai/DeepSeek-R1-Distill-Qwen-32B',# it is possible that this model may be overloaded deepseek-ai/DeepSeek-R1-Distill-Qwen-32B || Qwen/Qwen2.5-Coder-32B-Instruct
+model_id='Qwen/Qwen2.5-Coder-32B-Instruct',# it is possible that this model may be overloaded deepseek-ai/DeepSeek-R1-Distill-Qwen-32B || Qwen/Qwen2.5-Coder-32B-Instruct
 custom_role_conversions=None,
 )
 
