@@ -11,32 +11,65 @@
 
   Here are a few examples using notional tools:
   ---
-  Task: "Generate an image of the oldest person in this document."
+  Task: "Review pull request #42 for TODO and FIXME comments."
 
-  Thought: I will proceed step by step and use the following tools: `document_qa` to find the oldest person in the document, then `image_generator` to generate an image according to the answer.
+  Thought: I will start by retrieving the list of files changed in PR #42 using get_pr_files_changed, then fetch the diffs using get_pr_diff_for_file, and finally run find_todo_comments on each diff.
+
   Code:
   ```py
-  answer = document_qa(document=document, question="Who is the oldest person mentioned?")
-  print(answer)
+  files_changed = get_pr_files_changed(github_url="https://github.com/user/repo", pr_number=42)
+  print(files_changed)
   ```<end_code>
-  Observation: "The oldest person in the document is John Doe, a 55 year old lumberjack living in Newfoundland."
 
-  Thought: I will now generate an image showcasing the oldest person.
-  Code:
+  **Observation:** "['src/main.py', 'docs/README.md']"
+
+  **Thought:** Now I will retrieve the diff for 'src/main.py' and check for any TODO or FIXME comments.
+
+  **Code:**
   ```py
-  image = image_generator("A portrait of John Doe, a 55-year-old man living in Canada.")
-  final_answer(image)
+  diff_main = get_pr_diff_for_file(github_url="https://github.com/user/repo", pr_number=42, file_path="src/main.py")
+  comments = find_todo_comments(code=diff_main)
+  final_answer("TODO/FIXME Comments in src/main.py:\n" + comments)
   ```<end_code>
 
   ---
-  Task: "What is the result of the following operation: 5 + 3 + 1294.678?"
+  **Example 2: Full Code Quality and Security Review**
 
-  Thought: I will use python code to compute the result of the operation and then return the final answer using the `final_answer` tool
-  Code:
+  **Task:** "Review pull request #105 for potential code smells, linting issues, and security vulnerabilities."
+
+  **Thought:** I will start by listing all files changed in the PR, then for each file, fetch its diff and run `detect_code_smells`, `lint_code`, and `security_check_code` to capture any issues.
+
+  **Code:**
   ```py
-  result = 5 + 3 + 1294.678
-  final_answer(result)
+  files_changed = get_pr_files_changed(github_url="https://github.com/user/repo", pr_number=105)
+  print(files_changed)
   ```<end_code>
+
+  **Observation:** "['app/controller.py', 'app/model.py', 'README.md']"
+
+  **Thought:** Now, I will process each file. For instance, for 'app/controller.py':
+
+  **Code:**
+  ```py
+  diff_controller = get_pr_diff_for_file(github_url="https://github.com/user/repo", pr_number=105, file_path="app/controller.py")
+  smells = detect_code_smells(code=diff_controller)
+  lint_issues = lint_code(code=diff_controller)
+  security_issues = security_check_code(code=diff_controller)
+  print("Smells:", smells)
+  print("Lint Issues:", lint_issues)
+  print("Security Issues:", security_issues)
+  ```<end_code>
+
+  **Observation:** *(Outputs from each tool will be shown here.)*
+
+  **Thought:** Finally, check if documentation was updated:
+
+  **Code:**
+  ```py
+  docs_update = check_documentation_updates(changed_files="app/controller.py\napp/model.py\nREADME.md")
+  final_answer("Review Summary:\nDocumentation: " + docs_update + "\nPlease refer to the detailed logs for further recommendations.")
+  ```<end_code>
+
 
   ---
   Task:
@@ -317,5 +350,5 @@
     Put all these in your final_answer tool, everything that you do not pass as an argument to final_answer will be lost.
     And even if your task resolution is not successful, please return as much context as possible, so that your manager can act upon this feedback.
   "report": |-
-    Here is the final answer from your managed agent '{{name}}':
+    Here is the final review from your managed agent '{{name}}':
     {{final_answer}}

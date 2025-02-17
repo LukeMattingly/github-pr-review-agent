@@ -195,7 +195,7 @@ def detect_code_smells(code: str) -> str:
 
     except Exception as e:
         return f"Error analyzing code: {str(e)}"
-
+'''
 @tool
 def get_file_content(github_url: str, file_path: str) -> str:
     """Fetches the content of a specific file from the GitHub repository.
@@ -216,7 +216,8 @@ def get_file_content(github_url: str, file_path: str) -> str:
         return response.text
     except Exception as e:
         return f"Error: {str(e)}"
-    
+
+        ''' 
 @tool
 def security_check_code(code: str) -> str:
     """Analyzes the provided code snippet for potential security vulnerabilities.
@@ -312,7 +313,7 @@ final_answer = FinalAnswerTool()
 model = HfApiModel(
 max_tokens=2096,
 temperature=0.5,
-model_id='Qwen/Qwen2.5-Coder-32B-Instruct',# it is possible that this model may be overloaded
+model_id='deepseek-ai/DeepSeek-R1-Distill-Qwen-32B',# it is possible that this model may be overloaded deepseek-ai/DeepSeek-R1-Distill-Qwen-32B || Qwen/Qwen2.5-Coder-32B-Instruct
 custom_role_conversions=None,
 )
 
@@ -322,7 +323,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, get_file_content, security_check_code, check_documentation_updates, lint_code, get_pr_diff_for_file ], ## add your tools here (don't remove final answer)
+    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, security_check_code, check_documentation_updates, lint_code, get_pr_diff_for_file ], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
