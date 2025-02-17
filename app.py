@@ -9,6 +9,7 @@ import ast
 from typing import List
 from huggingface_hub import login
 import os
+from CustomGradioUI import CustomGradioUI
 
 
 from Gradio_UI import GradioUI
@@ -165,11 +166,46 @@ def get_pr_files_changed(github_url: str, pr_number: int) -> List[str]:
             return [f"Error fetching PR files: {response.json().get('message', 'Unknown error')}"]
         
         files = response.json()
-        return [file['filename'] for file in files]
+        files_changed = [file['filename'] for file in files]
+        print(files_changed)
+        return files_changed
 
     except Exception as e:
         return [f"Error retrieving files for PR #{pr_number}: {str(e)}"]
+    
+#Helper Function
+def diff_to_code(diff: str) -> str:
+    """
+    Converts a unified diff string into a regular code string by extracting
+    added and context lines, while ignoring diff metadata and removed lines.
 
+    Args:
+        diff: A unified diff string representing code changes.
+
+    Returns:
+        A string containing the reconstructed code.
+    """
+    code_lines = []
+    for line in diff.splitlines():
+        # Skip diff metadata lines
+        if line.startswith("diff") or line.startswith("index") or line.startswith("---") or line.startswith("+++"):
+            continue
+        # Skip hunk headers (lines starting with @@)
+        if re.match(r'^@@', line):
+            continue
+        # Skip removal lines (lines starting with '-')
+        if line.startswith("-"):
+            continue
+        # For added lines, remove the '+' prefix
+        if line.startswith("+"):
+            code_lines.append(line[1:])
+        # For context lines (starting with a space), remove the leading space
+        elif line.startswith(" "):
+            code_lines.append(line[1:])
+        else:
+            code_lines.append(line)
+    return "\n".join(code_lines)
+'''
 @tool
 def detect_code_smells(code: str) -> str:
     """Detects common code smells such as long functions and deeply nested loops.
@@ -198,6 +234,40 @@ def detect_code_smells(code: str) -> str:
     except Exception as e:
         return f"Error analyzing code: {str(e)}"
 '''
+
+@tool
+def detect_code_smells_diff(diff: str) -> str:
+    """Detects common code smells such as long functions and deeply nested loops from a code diff.
+    
+    Args:
+        diff: A unified diff string representing changes in code to analyze for potential code smells.
+    
+    Returns:
+        A string listing detected code smells based on the added and context code lines.
+        If no code smells are found, returns a message indicating the code is clean.
+    """
+    try:
+        # Use the helper function to convert the diff into a code string.
+        code = diff_to_code(diff)
+        tree = ast.parse(code)
+        issues = []
+
+        for node in ast.walk(tree):
+            # Detect long functions (more than 20 statements)
+            if isinstance(node, ast.FunctionDef) and len(node.body) > 20:
+                issues.append(f"Long function detected: {node.name} ({len(node.body)} lines)")
+            # Detect deeply nested loops by counting nested For/While nodes
+            if isinstance(node, (ast.For, ast.While)):
+                nested_loops = sum(isinstance(n, (ast.For, ast.While)) for n in ast.walk(node))
+                if nested_loops > 2:
+                    issues.append(f"Deeply nested loop detected at line {node.lineno}")
+
+        return "\n".join(issues) if issues else "No code smells detected."
+    
+    except Exception as e:
+        return f"Error analyzing code diff: {str(e)}"
+
+'''
 @tool
 def get_file_content(github_url: str, file_path: str) -> str:
     """Fetches the content of a specific file from the GitHub repository.
@@ -220,12 +290,14 @@ def get_file_content(github_url: str, file_path: str) -> str:
         return f"Error: {str(e)}"
 
         ''' 
+
+
 @tool
-def security_check_code(code: str) -> str:
-    """Analyzes the provided code snippet for potential security vulnerabilities.
+def security_check_code_diff(diff: str) -> str:
+    """Analyzes the provided code diff for potential security vulnerabilities.
     
     Args:
-        code: The source code to be analyzed for common security issues (e.g., hardcoded secrets, unsafe functions).
+        diff: A unified diff string representing changes in code. The source code to be analyzed for common security issues (e.g., hardcoded secrets, unsafe functions).
     
     Returns:
         A string listing detected potential security vulnerabilities based on common patterns (e.g., hardcoded credentials,
@@ -233,6 +305,7 @@ def security_check_code(code: str) -> str:
     """
     import re
     issues = []
+    code = diff_to_code(diff)
     
     # Check for hardcoded credentials (case-insensitive search)
     secret_patterns = [
@@ -288,11 +361,11 @@ def check_documentation_updates(changed_files: str) -> str:
         return "No documentation updates detected. Consider reviewing the docs to ensure they reflect the new changes."
 
 @tool
-def lint_code(code: str) -> str:
+def lint_code(diff: str) -> str:
     """Analyzes the provided code snippet for style and potential issues using a linter.
     
     Args:
-        code: The source code to be analyzed.
+        diff: The source code to be analyzed.
     
     Returns:
         A string with linting warnings and suggestions for improvement, or a message indicating that no issues were found.
@@ -300,6 +373,9 @@ def lint_code(code: str) -> str:
     # This is a placeholder; you could integrate pylint or flake8 via subprocess or an API.
     # For demonstration, we'll simulate a response.
     issues = []
+
+    code = diff_to_code(diff)
+    
     if "print(" in code:
         issues.append("Consider removing debug print statements.")
     if not issues:
@@ -329,7 +405,7 @@ with open("prompts.yaml", 'r') as stream:
     
 agent = CodeAgent(
     model=model,
-    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells, security_check_code, check_documentation_updates, lint_code, get_pr_diff_for_file ], ## add your tools here (don't remove final answer)
+    tools=[final_answer, get_open_pull_requests, find_todo_comments, get_pr_diff, get_pr_files_changed, detect_code_smells_diff, security_check_code, check_documentation_updates, lint_code, get_pr_diff_for_file ], ## add your tools here (don't remove final answer)
     max_steps=6,
     verbosity_level=1,
     grammar=None,
@@ -340,4 +416,4 @@ agent = CodeAgent(
 )
 
 
-GradioUI(agent).launch()
+CustomGradioUI(agent).launch()
