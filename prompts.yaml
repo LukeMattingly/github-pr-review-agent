@@ -18,7 +18,8 @@
   Code:
   ```py
   files_changed = get_pr_files_changed(github_url="https://github.com/user/repo", pr_number=42)
-  print(files_changed)
+  for file in files_changed:
+      print(file)
   ```<end_code>
 
   **Observation:** "['src/main.py', 'docs/README.md']"
